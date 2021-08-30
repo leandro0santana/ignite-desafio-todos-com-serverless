@@ -1,0 +1,73 @@
+service:
+  name: "todoscomserverless"
+
+plugins:
+  - serverless-offline
+  - serverless-webpack
+  - serverless-dynamodb-local
+
+custom:
+  webpack:
+    wevpackConfig: ./webpack.config.js
+    includeModules: true
+  dynamodb:
+    stages:
+      - dev
+      - local
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+
+provider:
+  name: aws
+  region: us-east-1
+  runtime: nodejs14.x
+  iamRolesStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:*
+      Resource: "*"
+
+functions:
+  generateCertificate:
+    handler: src/functions/createTodosList.handle
+    events:
+      - http:
+          path: /createTodosList/{user_id}
+          method: POST
+          cors: true
+    iamRolesStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:PutItem
+        Resource: "arn:aws:dynamodb:${self.provider.region}:*:table/todos_list"
+  verifyCertificate:
+    handler: src/functions/showTodosList.handle
+    events:
+      - http:
+          path: /showTodosList/{user_id}
+          method: GET
+          cors: true
+    iamRolesStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+        Resource: "arn:aws:dynamodb:${self.provider.region}:*:table/todos_list"
+
+resources:
+  Resources:
+    dbCertificateUsers:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: todos_list
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+        AttributeDefinitions:
+          - AttributeName: user_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: user_id
+            KeyType: HASH
